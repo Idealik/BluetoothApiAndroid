@@ -17,8 +17,10 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -26,6 +28,9 @@ public class MainActivity extends AppCompatActivity {
 
     private Button button1, button2;//Указываем id наших кнопок
     private Button connectBtn;
+    private Button turnSignalBtn;
+    private Button partyBtn;
+    private Button stopTurn;
 
     private static final int REQUEST_ENABLE_BT = 1;
     private BluetoothAdapter btAdapter = null;
@@ -33,13 +38,15 @@ public class MainActivity extends AppCompatActivity {
     private OutputStream outStream = null;
     private Spinner mySpinner;
     private Spinner nameSpinner;
+    private static Thread turnThread;
+    private static Thread partyThread;
+    private static boolean isTurning = false;
     // SPP UUID сервиса
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     // MAC-адрес Bluetooth модуля
     private static String address = "00:00:00:00:00";  //Вместо “00:00” Нужно нудет ввести MAC нашего bluetooth
     private Set<BluetoothDevice> pairedDevices;
-    /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,6 +56,9 @@ public class MainActivity extends AppCompatActivity {
         button1 =  findViewById(R.id.onBtn); //Добавляем сюда имена наших кнопок
         button2 =  findViewById(R.id.offBtn);
         connectBtn = findViewById(R.id.connectBtn);
+        turnSignalBtn = findViewById(R.id.turnSignalBtn);
+        partyBtn = findViewById(R.id.partyBtn);
+        stopTurn = findViewById(R.id.stopTurn);
 
         mySpinner = findViewById(R.id.mySpinner);
         nameSpinner = findViewById(R.id.nameSpinner);
@@ -100,6 +110,101 @@ public class MainActivity extends AppCompatActivity {
                 connect();
             }
         });
+
+        turnSignalBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                turnSignal();
+            }
+        });
+        stopTurn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isTurning = false;
+                turnThread.interrupt();
+            }
+        });
+
+        partyBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                party();
+            }
+        });
+    }
+
+    private void party() {
+        partyThread = new Thread(new Runnable() {
+            Random rand = new Random();
+            int sleepTime = 400;
+
+            @Override
+            public void run() {
+                while (true){
+                    try {
+                        int randomNum = rand.nextInt(6);
+                        sendData(String.valueOf(randomNum));
+                        Thread.sleep(sleepTime);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                }
+            }
+        });
+        partyThread.start();
+    }
+
+
+    private void turnSignal() {
+
+        turnThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String onFirstPin = "1";
+                String onSecondPin = "3";
+                String onThirdPin = "5";
+
+                String offFirstPin = "0";
+                String offSecondPin = "2";
+                String offThirdPin = "4";
+                int sleepTime = 400;
+                isTurning = true;
+                while (isTurning){
+                    try {
+                        //включаем первый
+                        Log.d(TAG, "включаем первый");
+                        sendData(onFirstPin);
+                        Thread.sleep(sleepTime);
+
+                        //включаем второй
+                        Log.d(TAG, "включаем второй");
+                        sendData(onSecondPin);
+                        Thread.sleep(sleepTime);
+
+                        Log.d(TAG, "выключаем первый");
+                        sendData(offFirstPin);
+                        Thread.sleep(sleepTime);
+
+                        Log.d(TAG, "включаем третий");
+                        sendData(onThirdPin);
+                        Thread.sleep(sleepTime);
+
+                        Log.d(TAG, "выключаем второй");
+                        sendData(offSecondPin);
+                        Thread.sleep(sleepTime);
+
+                        Log.d(TAG, "выключаем третий");
+                        sendData(offThirdPin);
+                        Thread.sleep(1000);
+
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+        turnThread.start();
     }
 
     private void connect(){
@@ -116,6 +221,7 @@ public class MainActivity extends AppCompatActivity {
             btSocket = device.createRfcommSocketToServiceRecord(MY_UUID);
         } catch (IOException e) {
             Log.d(TAG, "gg");
+            Toast.makeText(getBaseContext(), "Не удалось SOCKET", Toast.LENGTH_SHORT).show();
         }
 
         // Discovery is resource intensive.  Make sure it isn't going on
